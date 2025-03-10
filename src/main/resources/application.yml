@@ -1,0 +1,23 @@
+server:
+  port: 16692
+
+spring:
+  application:
+    name: MQTT-PROJECT
+mqtt:
+  broker:
+    url: tcp://192.168.1.111:1883
+    clientId: springboot-mqtt-client
+    topic: espiot
+    qos: 2
+    username:
+    password:
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://192.168.1.103:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
