@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.liuyang</groupId>
 	<artifactId>mqtt-demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0</version>
 	<name>mqtt-demo</name>
 	<description>Demo project for Spring Boot</description>
 	<url/>
@@ -70,6 +70,15 @@
 			<artifactId>spring-boot-configuration-processor</artifactId>
 			<optional>true</optional>
 		</dependency>
+
+
+		<!-- https://mvnrepository.com/artifact/com.alibaba/fastjson -->
+		<dependency>
+			<groupId>com.alibaba</groupId>
+			<artifactId>fastjson</artifactId>
+			<version>1.2.73</version>
+		</dependency>
+
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
