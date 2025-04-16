@@ -26,6 +26,7 @@ public class MqttService {
     private static final Logger logger = LoggerFactory.getLogger(MqttService.class);
 
     private static final String INFLUXDB_URL = "http://IOT-INFLUXDB-API/influxdb/insertData";
+    private static final String REDIS_SETSTRING = "http://REDISPROJECT/setString";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -56,12 +57,33 @@ public class MqttService {
                 executor.submit(()-> {
                     try {
                         sendDataToInfluxDB(new String(message.getPayload()));
+                        sendDataToRedis(new String(message.getPayload()));
                     } catch (JsonProcessingException e) {
                         logger.error(" , e", e);
                     }
                 });
 
         });
+    }
+    public void sendDataToRedis(String message) throws JsonProcessingException {
+        logger.info("message: {}", message);
+        JSONObject mqttMessage = JSONObject.parseObject(message);
+        if(!StringUtils.equals(mqttMessage.getString("msgType"), "heartbeat")){
+            return;
+        }
+
+        JSONObject redisData = new JSONObject();
+        redisData.put("key", mqttMessage.getString("source"));
+        redisData.put("value", mqttMessage.getString("source"));
+        redisData.put("timeout", 60);
+
+        logger.info("redisData minioData: {}", redisData);
+
+        if(redisData.isEmpty()){
+            return;
+        }
+        String response = restTemplate.postForObject(REDIS_SETSTRING, redisData, String.class);
+        logger.info("resposne is {}", response);
     }
 
     private void sendDataToInfluxDB(String message) throws JsonProcessingException {
@@ -106,13 +128,30 @@ public class MqttService {
         mqttClient.publish(topic, mqttMessage);
     }
 
+    public boolean publish(JSONObject message)  {
+        MqttMessage mqttMessage = new MqttMessage(message.getString("message").getBytes());
+        Integer tmpQos = message.getInteger("qos");
+        mqttMessage.setQos(tmpQos == null ? qos : tmpQos);
+        String tmpTopic = message.getString("topic");
+
+        boolean flag = false;
+        try {
+            mqttClient.publish(tmpTopic, mqttMessage);
+            flag = true;
+        } catch (MqttException e) {
+            logger.error("{}", e);
+        }
+        logger.info("flag {}", flag);
+        return flag;
+    }
+
     @PostConstruct // 在 Bean 初始化完成后自动执行
     public void init() {
         try {
             subscribe();
-            System.out.println("Subscribed to MQTT topic: " + topic);
+            logger.info("Subscribed to MQTT topic: {}", topic);
         } catch (MqttException e) {
-            System.err.println("Failed to subscribe to MQTT topic: " + e.getMessage());
+            logger.error("Failed to subscribe to MQTT topic: " + e.getMessage());
         }
     }
 }
