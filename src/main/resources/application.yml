@@ -1,6 +1,9 @@
 server:
   port: 16692
 
+logging:
+  config: classpath:logback-spring.xml
+
 spring:
   application:
     name: MQTT-PROJECT
