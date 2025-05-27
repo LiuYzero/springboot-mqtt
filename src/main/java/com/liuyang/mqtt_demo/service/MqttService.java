@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.liuyang.mqtt_demo.Entity.TemperatureSensorData;
 import jakarta.annotation.PostConstruct;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -39,6 +41,13 @@ public class MqttService {
             new ThreadPoolExecutor.DiscardPolicy()
     );
 
+    ExpiringMap<String,String> deviceExpiringMap = ExpiringMap.builder()
+            .maxSize(100)
+            .expiration(180, TimeUnit.SECONDS)
+            .expirationPolicy(ExpirationPolicy.ACCESSED)
+            .expirationListener((k, v) -> recordDevicesOffLine((String) k, (String) v))
+            .build();
+
     @Autowired
     RestTemplate restTemplate;
     
@@ -58,13 +67,51 @@ public class MqttService {
                     try {
                         sendDataToInfluxDB(new String(message.getPayload()));
                         sendDataToRedis(new String(message.getPayload()));
-                    } catch (JsonProcessingException e) {
+                        recordDeivcesOnLine(new String(message.getPayload()));
+                    } catch (Exception e) {
                         logger.error(" , e", e);
                     }
                 });
 
         });
     }
+
+    /**
+     * 记录设备在线状态
+     * @param message 原始消息，心跳消息
+     */
+    public void recordDeivcesOnLine(String message){
+        JSONObject mqttMessage = JSONObject.parseObject(message);
+        if(!StringUtils.equals(mqttMessage.getString("msgType"), "heartbeat")){
+            return;
+        }
+        deviceExpiringMap.put(mqttMessage.getString("source"), mqttMessage.getString("source"));
+        logger.info("device on line: {}", mqttMessage.getString("source"));
+    }
+
+    /**
+     * 记录设备离线状态
+     * @param deivceId 设备id
+     * @param source 设备来源
+     */
+    public void recordDevicesOffLine(String deivceId, String source){
+        try {
+            JSONObject message = new JSONObject();
+            message.put("msgType", "offline");
+            message.put("source", source);
+            message.put("timestamp", System.currentTimeMillis());
+
+            MqttMessage mqttMessage = new MqttMessage(message.toJSONString().getBytes());
+            Integer tmpQos = message.getInteger("qos");
+            mqttMessage.setQos(tmpQos == null ? qos : tmpQos);
+
+            mqttClient.publish("GlobalNotification", mqttMessage);
+        } catch (MqttException e) {
+            logger.error("{}", e);
+        }
+        logger.info("device offline: {}", source);
+    }
+
     public void sendDataToRedis(String message) throws JsonProcessingException {
         logger.info("message: {}", message);
         JSONObject mqttMessage = JSONObject.parseObject(message);
